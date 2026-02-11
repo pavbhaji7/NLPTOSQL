@@ -113,7 +113,7 @@ def read_root():
 
 @app.get("/api/schema")
 def get_schema():
-    return JSONSerializer.serialize(schema)
+    return schema.to_dict()
 
 @app.post("/api/translate", response_model=TranslationResponse)
 def translate_query(request: QueryRequest):
