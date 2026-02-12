@@ -1,18 +1,17 @@
+
 import sys
-from gsql.schema import DatabaseSchema, Table, Column, JSONSerializer, DomainDictionary
+import os
+
+# Add current directory to path
+sys.path.append(os.getcwd())
+
+from gsql.schema import DatabaseSchema, Table, Column, DomainDictionary
 from gsql.nlp import NLPProcessor
 from gsql.tagger import SemanticTagger
 from gsql.linker import SchemaLinker
 from gsql.generator import SQLGenerator
 
 def create_sample_schema():
-    # IMDB-like schema
-    # Movie(mid, title, release_year, budget)
-    # Actor(aid, name, gender)
-    # Cast(aid, mid, role)
-    # Director(did, name)
-    # Directed(did, mid)
-    
     movie = Table("Movie", [
         Column("mid", "int", is_pk=True),
         Column("title", "text"),
@@ -53,50 +52,27 @@ def create_sample_schema():
 
 def main():
     schema, domain_dict = create_sample_schema()
-    
-    # Serialize schema (just to show it works)
-    # json_schema = JSONSerializer.serialize(schema)
-    # print("Serialized Schema:\n", json_schema)
-    
-    try:
-        nlp = NLPProcessor()
-    except OSError:
-        print("Spacy model not found. Attempting to download...")
-        import os
-        os.system("python -m spacy download en_core_web_sm")
-        nlp = NLPProcessor()
-        
+    nlp = NLPProcessor()
     tagger = SemanticTagger(schema, domain_dict)
     linker = SchemaLinker(schema)
     generator = SQLGenerator()
 
-    # Test queries
     queries = [
-        "Find all movies released after 10000",
+        "Find all movies released after 2000",
         "Show me the actors who played in Avatar",
         "List directors of films with budget greater than 1000000"
     ]
-    
-    if len(sys.argv) > 1:
-        queries = [sys.argv[1]]
 
-    print(f"{'NLQ':<50} | {'SQL'}")
-    print("-" * 100)
-    
-    for nlq in queries:
-        # Step 2: NLP
-        tokens = nlp.process(nlq)
-        
-        # Step 3: Tagging
-        tagged_tokens = tagger.tag(tokens)
-        
-        # Step 4-6: Linking
-        query_structure = linker.link(tagged_tokens)
-        
-        # Step 8: Generation
-        sql = generator.generate(query_structure)
-        
-        print(f"{nlq:<50} | {sql}")
+    with open("d:/NLPTOSQL/debug_output_utf8.txt", "w", encoding="utf-8") as f:
+        for q in queries:
+            f.write(f"\nQuery: {q}\n")
+            tokens = nlp.process(q)
+            tagged = tagger.tag(tokens)
+            structure = linker.link(tagged)
+            sql = generator.generate(structure)
+            
+            f.write(f"Structure: {structure}\n")
+            f.write(f"SQL: {sql}\n")
 
 if __name__ == "__main__":
     main()

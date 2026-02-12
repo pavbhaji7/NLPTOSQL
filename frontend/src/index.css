@@ -262,3 +262,50 @@ p.subtitle {
   cursor: pointer;
   font-size: 0.8rem;
 }
+
+/* Schema Uploader */
+.schema-uploader {
+  background-color: var(--bg-secondary);
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.schema-uploader h3 {
+  margin-top: 0;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.schema-uploader textarea {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 1rem;
+  resize: vertical;
+  min-height: 200px;
+  width: 100%;
+  box-sizing: border-box; /* Important for padding */
+}
+
+.schema-uploader textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.schema-uploader button {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.2s ease;
+}
+
+.schema-uploader button:hover {
+  opacity: 0.9;
+}

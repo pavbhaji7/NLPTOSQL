@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import SchemaViewer from './components/SchemaViewer';
+import SchemaUploader from './components/SchemaUploader';
 import QueryInput from './components/QueryInput';
 import PipelineVisualizer from './components/PipelineVisualizer';
 import SQLResult from './components/SQLResult';
@@ -8,6 +9,14 @@ function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showUploader, setShowUploader] = useState(false);
+
+  const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
+
+  const handleSchemaUpdate = () => {
+    setSchemaRefreshKey(prev => prev + 1);
+    setShowUploader(false);
+  };
 
   const handleSearch = async (query) => {
     setLoading(true);
@@ -40,7 +49,11 @@ function App() {
   return (
     <div className="app-container">
       <div className="sidebar">
-        <SchemaViewer />
+        <button onClick={() => setShowUploader(!showUploader)} style={{ marginBottom: '10px' }}>
+          {showUploader ? 'Hide Uploader' : 'Upload Schema'}
+        </button>
+        {showUploader && <SchemaUploader onSchemaUpdate={handleSchemaUpdate} />}
+        <SchemaViewer key={schemaRefreshKey} />
       </div>
 
       <main className="main-content">

@@ -44,14 +44,45 @@ class SchemaLinker:
         last_column = None
         current_condition = None
 
+        # Pre-process: Merge consecutive Value tokens
+        # Heuristic: "Computer" (Value) + "Science" (Value) -> "Computer Science" (Value)
+        merged_tokens = []
+        skip_indices = set()
+        for i in range(len(tagged_tokens)):
+            if i in skip_indices: continue
+            
+            token = tagged_tokens[i]
+            if token.get("gsql_tag") == "Value":
+                # Check ahead
+                merged_text = token["text"]
+                j = i + 1
+                while j < len(tagged_tokens) and tagged_tokens[j].get("gsql_tag") == "Value":
+                    # STOP merging if we encounter a known condition keyword even if tagged as Value (heuristic fix)
+                    # or if the next token is explicitly tagged as Cond (though loop checks tag==Value)
+                    next_text = tagged_tokens[j]["text"].lower()
+                    if next_text in ["above", "below", "greater", "less", "higher", "lower", "more", "than", "after", "before"]:
+                        break
+                    
+                    merged_text += " " + tagged_tokens[j]["text"]
+                    skip_indices.add(j)
+                    j += 1
+                
+                # Update token text
+                token["text"] = merged_text
+                merged_tokens.append(token)
+            else:
+                merged_tokens.append(token)
+        
+        tagged_tokens = merged_tokens
+
         for i, token in enumerate(tagged_tokens):
             tag = token.get("gsql_tag")
             
             if tag == "Meta" and token.get("meta_match", {}).get("type") == "column":
                 last_column = token["meta_match"]
             
-            elif tag == "Value":
-                # Value found. Link to last column.
+            elif tag in ["Value", "AGG"]:
+                # Value or Aggregation found. Link to last column.
                 val = token["text"]
                 if last_column:
                     if "table" in last_column:
@@ -59,21 +90,69 @@ class SchemaLinker:
                     else:
                          col_str = last_column['name'] # Assumes fully qualified name like Table.Column
 
-                    # Check for condition operator in previous tokens
+                    # Check for condition operator in previous tokens (look back)
                     op = "="
-                    if i > 0 and tagged_tokens[i-1].get("gsql_tag") == "Cond":
-                        op_token = tagged_tokens[i-1]["lemma"]
-                        if op_token in [">", "<", ">=", "<=", "=", "!="]:
-                             op = op_token
-                        elif op_token == "after": op = ">"
-                        elif op_token == "before": op = "<"
+                    # Look back up to 6 tokens for context
+                    for k in range(i-1, max(-1, i-6), -1):
+                        if tagged_tokens[k].get("gsql_tag") == "Cond":
+                            op_lemma = tagged_tokens[k]["lemma"]
+                            if op_lemma in [">", "<", ">=", "<=", "=", "!="]:
+                                op = op_lemma
+                                break
+                            elif op_lemma in ["after", "greater", "higher", "more", "high", "above"]: 
+                                op = ">"
+                                break
+                            elif op_lemma in ["before", "less", "lower", "low", "below"]: 
+                                op = "<"
+                                break
                     
                     if "table" in last_column:
                         table_name = last_column['table']
                     else:
                         table_name = last_column['name'].split('.')[0]
+                    
+                    # Heuristic: If val contains "department", try to link to Departments table
+                    if "department" in val.lower():
+                        # Find a table with "department" in name
+                        for t_name in self.schema.table_map:
+                             if "department" in t_name.lower():
+                                 # Set column to this table's name column (assuming it exists)
+                                 # This is a specific fix for the user's case, generalizing needs more robust entity linking
+                                 col_str = f"{t_name}.name"
+                                 table_name = t_name
+                                 # Remove "department" from val for cleaner query usually, but keeping it is safer for exact match if DB has it
+                                 # For this specific query "Computer Science department", the value is likely just "Computer Science"
+                                 val = val.replace(" department", "").replace(" Department", "")
+                                 break
 
-                    query_structure["where"].append(f"{col_str} {op} '{val}'")
+                    # Check for aggregation (nested query)
+                    # Heuristic: If value is "average", "min", "max", etc., create a subquery
+                    # This is very basic; a real system would parse the phrase better
+                    agg_type = None
+                    if val.lower() in ["average", "avg", "mean"]: agg_type = "AVG"
+                    elif val.lower() in ["minimum", "min", "lowest"]: agg_type = "MIN"
+                    elif val.lower() in ["maximum", "max", "highest"]: agg_type = "MAX"
+                    elif val.lower() in ["sum", "total"]: agg_type = "SUM"
+                    elif val.lower() in ["count", "number"]: agg_type = "COUNT"
+
+                    if agg_type:
+                        # Subquery: SELECT AVG(col) FROM table
+                        # We assume the subquery is on the same column as the condition
+                        # e.g. "budget > average budget" -> budget > (SELECT AVG(budget) FROM Movie)
+                        
+                        subquery = {
+                            "select": [f"{agg_type}({col_str})"],
+                            "from": {table_name},
+                            "where": [],
+                            "group_by": [],
+                            "order_by": [],
+                            "limit": None,
+                             "joins": [] 
+                        }
+                        query_structure["where"].append({"col": col_str, "op": op, "val": subquery})
+                    else:
+                        query_structure["where"].append(f"{col_str} {op} '{val}'")
+                    
                     query_structure["from"].add(table_name)
 
         # 3. Join Inference

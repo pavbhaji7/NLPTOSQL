@@ -1,0 +1,119 @@
+
+--- Implicit Join (Multi-table Select) ---
+Query: Show titles of movies and names of actors
+SQL: SELECT Movie.title, Actor.name FROM Actor JOIN Cast ON Actor.aid = Cast.aid JOIN Movie ON Cast.mid = Movie.mid;
+Structure: {
+  "select": [
+    "Movie.title",
+    "Actor.name"
+  ],
+  "from": [
+    "Actor",
+    "Movie"
+  ],
+  "where": [],
+  "group_by": [],
+  "order_by": [],
+  "limit": null,
+  "joins": [
+    "JOIN Cast ON Actor.aid = Cast.aid",
+    "JOIN Movie ON Cast.mid = Movie.mid"
+  ]
+}
+
+--- Nested Query (AVG) ---
+Query: movies with budget higher than average budget
+SQL: SELECT Movie.budget, Movie.budget FROM Movie WHERE Movie.budget > (SELECT AVG(Movie.budget) FROM Movie);
+Structure: {
+  "select": [
+    "Movie.budget",
+    "Movie.budget"
+  ],
+  "from": [
+    "Movie"
+  ],
+  "where": [
+    {
+      "col": "Movie.budget",
+      "op": ">",
+      "val": {
+        "select": [
+          "AVG(Movie.budget)"
+        ],
+        "from": [
+          "Movie"
+        ],
+        "where": [],
+        "group_by": [],
+        "order_by": [],
+        "limit": null,
+        "joins": []
+      }
+    }
+  ],
+  "group_by": [],
+  "order_by": [],
+  "limit": null,
+  "joins": []
+}
+
+--- Nested Query (MAX) ---
+Query: movies with release_year after maximum release_year
+SQL: SELECT Movie.release_year, Movie.release_year FROM Movie WHERE Movie.release_year > (SELECT MAX(Movie.release_year) FROM Movie);
+Structure: {
+  "select": [
+    "Movie.release_year",
+    "Movie.release_year"
+  ],
+  "from": [
+    "Movie"
+  ],
+  "where": [
+    {
+      "col": "Movie.release_year",
+      "op": ">",
+      "val": {
+        "select": [
+          "MAX(Movie.release_year)"
+        ],
+        "from": [
+          "Movie"
+        ],
+        "where": [],
+        "group_by": [],
+        "order_by": [],
+        "limit": null,
+        "joins": []
+      }
+    }
+  ],
+  "group_by": [],
+  "order_by": [],
+  "limit": null,
+  "joins": []
+}
+
+--- Explicit Join via Nouns ---
+Query: names of directors and titles of movies
+SQL: SELECT Actor.name, Movie.title FROM Actor JOIN Cast ON Actor.aid = Cast.aid JOIN Movie ON Cast.mid = Movie.mid JOIN Directed ON Movie.mid = Directed.mid JOIN Director ON Directed.did = Director.did;
+Structure: {
+  "select": [
+    "Actor.name",
+    "Movie.title"
+  ],
+  "from": [
+    "Actor",
+    "Movie",
+    "Director"
+  ],
+  "where": [],
+  "group_by": [],
+  "order_by": [],
+  "limit": null,
+  "joins": [
+    "JOIN Cast ON Actor.aid = Cast.aid",
+    "JOIN Movie ON Cast.mid = Movie.mid",
+    "JOIN Directed ON Movie.mid = Directed.mid",
+    "JOIN Director ON Directed.did = Director.did"
+  ]
+}

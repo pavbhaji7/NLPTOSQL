@@ -20,6 +20,17 @@ class Column:
             "values": self.values
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Column':
+        return cls(
+            name=data["name"],
+            datatype=data["datatype"],
+            is_pk=data.get("is_pk", False),
+            is_fk=data.get("is_fk", False),
+            fk_ref=data.get("fk_ref"),
+            values=data.get("values")
+        )
+
 class Table:
     def __init__(self, name: str, columns: List[Column]):
         self.name = name
@@ -32,6 +43,11 @@ class Table:
             "columns": [col.to_dict() for col in self.columns]
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Table':
+        columns = [Column.from_dict(col_data) for col_data in data["columns"]]
+        return cls(name=data["name"], columns=columns)
+
 class DatabaseSchema:
     def __init__(self, name: str, tables: List[Table]):
         self.name = name
@@ -43,6 +59,13 @@ class DatabaseSchema:
             "database": self.name,
             "tables": [table.to_dict() for table in self.tables]
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'DatabaseSchema':
+        # data might be {"database": "name", "tables": [...]} or just {"name": "name", "tables": [...]}
+        name = data.get("database") or data.get("name", "UnknownDB")
+        tables = [Table.from_dict(table_data) for table_data in data["tables"]]
+        return cls(name=name, tables=tables)
 
 class JSONSerializer:
     @staticmethod

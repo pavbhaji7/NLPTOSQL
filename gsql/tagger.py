@@ -6,7 +6,7 @@ class SemanticTagger:
         self.schema = schema
         self.domain_dict = domain_dict
         self.agg_keywords = {"count", "sum", "avg", "average", "max", "maximum", "min", "minimum"}
-        self.cond_keywords = {"greater", "less", "more", "than", "after", "before", "between", "equal", "=", ">", "<", ">=", "<=", "!="}
+        self.cond_keywords = {"greater", "less", "more", "than", "after", "before", "between", "equal", "=", ">", "<", ">=", "<=", "!=", "high", "higher", "low", "lower", "above", "below"}
         self.help_keywords = {"per", "each", "group", "by", "order", "sort", "limit", "top", "bottom"}
 
     def tag(self, tokens: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -50,14 +50,16 @@ class SemanticTagger:
         return tagged_tokens
 
     def _check_meta(self, term: str) -> Any:
-        # Check tables
-        if term in self.schema.table_map:
-            return {"type": "table", "name": term}
+        # Check tables (case-insensitive)
+        for t_name, table in self.schema.table_map.items():
+            if term == t_name.lower():
+                return {"type": "table", "name": t_name}
         
-        # Check columns (search in all tables)
+        # Check columns (search in all tables, case-insensitive)
         for table in self.schema.tables:
-            if term in table.column_map:
-                return {"type": "column", "table": table.name, "name": term}
+            for c_name in table.column_map:
+                 if term == c_name.lower():
+                     return {"type": "column", "table": table.name, "name": c_name}
         
         # Check synonyms
         synonym = self.domain_dict.lookup(term)

@@ -152,5 +152,33 @@ def translate_query(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# Linker and Tagger need to be re-initialized when schema changes
+def initialize_components(new_schema: DatabaseSchema):
+    global schema, domain_dict, tagger, linker, generator
+    schema = new_schema
+    
+    # Auto-generate domain dictionary from schema
+    # In a real app, successful schema upload might include domain terms
+    domain_dict = DomainDictionary()
+    for table in schema.tables:
+        domain_dict.add_synonym(table.name.lower(), "table", table.name)
+        for col in table.columns:
+            domain_dict.add_synonym(col.name.lower(), "column", f"{table.name}.{col.name}")
+            
+    # Re-initialize components
+    tagger = SemanticTagger(schema, domain_dict)
+    linker = SchemaLinker(schema)
+    generator = SQLGenerator()
+
+@app.post("/api/schema/update")
+def update_schema(schema_data: Dict[str, Any]):
+    try:
+        new_schema = DatabaseSchema.from_dict(schema_data)
+        initialize_components(new_schema)
+        return {"message": "Schema updated successfully", "schema": new_schema.to_dict()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid schema format: {str(e)}")
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

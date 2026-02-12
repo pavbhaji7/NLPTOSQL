@@ -1,0 +1,25 @@
+
+Query: List the names of students and their advisors in the Computer Science department who have a GPA above 3.5
+SQL: SELECT Students.name, Students.gpa FROM Students JOIN Departments ON Students.dept_id = Departments.dept_id JOIN Advisors ON Students.advisor_id = Advisors.aid WHERE Departments.name = 'Computer Science' AND Students.gpa > '3.5';
+Structure: {
+  "select": [
+    "Students.name",
+    "Students.gpa"
+  ],
+  "from": [
+    "Students",
+    "Departments",
+    "Advisors"
+  ],
+  "where": [
+    "Departments.name = 'Computer Science'",
+    "Students.gpa > '3.5'"
+  ],
+  "group_by": [],
+  "order_by": [],
+  "limit": null,
+  "joins": [
+    "JOIN Departments ON Students.dept_id = Departments.dept_id",
+    "JOIN Advisors ON Students.advisor_id = Advisors.aid"
+  ]
+}

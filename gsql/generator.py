@@ -3,12 +3,16 @@ from typing import Dict, Any, List
 class SQLGenerator:
     @staticmethod
     def generate(query_structure: Dict[str, Any]) -> str:
+        return SQLGenerator._generate_from_struct(query_structure) + ";"
+
+    @staticmethod
+    def _generate_from_struct(query_structure: Dict[str, Any]) -> str:
         # SELECT
         select_clause = "SELECT " + ", ".join(query_structure["select"]) if query_structure["select"] else "SELECT *"
         
         # FROM
         # We need to pick a primary table.
-        # Heuristic: Pick the first one in the set, or the one that is the 'left' side of joins
+        # Heuristic: Pick the first one in the set
         distinct_tables = list(query_structure["from"])
         if not distinct_tables:
             return "" # Error or empty
@@ -20,7 +24,19 @@ class SQLGenerator:
         join_clause = " ".join(query_structure["joins"])
         
         # WHERE
-        where_clause = "WHERE " + " AND ".join(query_structure["where"]) if query_structure["where"] else ""
+        where_parts = []
+        for cond in query_structure["where"]:
+            if isinstance(cond, str):
+                where_parts.append(cond)
+            elif isinstance(cond, dict):
+                # Handle subquery: col op (subquery)
+                col = cond["col"]
+                op = cond["op"]
+                subquery_struct = cond["val"]
+                sub_sql = SQLGenerator._generate_from_struct(subquery_struct)
+                where_parts.append(f"{col} {op} ({sub_sql})")
+        
+        where_clause = "WHERE " + " AND ".join(where_parts) if where_parts else ""
         
         # GROUP BY
         group_by_clause = "GROUP BY " + ", ".join(query_structure["group_by"]) if query_structure["group_by"] else ""
@@ -33,4 +49,4 @@ class SQLGenerator:
         
         # Construct final query
         parts = [select_clause, from_clause, join_clause, where_clause, group_by_clause, order_by_clause, limit_clause]
-        return " ".join(part for part in parts if part).strip() + ";"
+        return " ".join(part for part in parts if part).strip()

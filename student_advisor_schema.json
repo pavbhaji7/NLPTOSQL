@@ -1,0 +1,69 @@
+{
+    "database": "UniversityDB",
+    "tables": [
+        {
+            "name": "Students",
+            "columns": [
+                {
+                    "name": "sid",
+                    "datatype": "int",
+                    "is_pk": true
+                },
+                {
+                    "name": "name",
+                    "datatype": "text"
+                },
+                {
+                    "name": "gpa",
+                    "datatype": "float"
+                },
+                {
+                    "name": "dept_id",
+                    "datatype": "int",
+                    "is_fk": true,
+                    "fk_ref": "Departments.dept_id"
+                },
+                {
+                    "name": "advisor_id",
+                    "datatype": "int",
+                    "is_fk": true,
+                    "fk_ref": "Advisors.aid"
+                }
+            ]
+        },
+        {
+            "name": "Advisors",
+            "columns": [
+                {
+                    "name": "aid",
+                    "datatype": "int",
+                    "is_pk": true
+                },
+                {
+                    "name": "name",
+                    "datatype": "text"
+                },
+                {
+                    "name": "dept_id",
+                    "datatype": "int",
+                    "is_fk": true,
+                    "fk_ref": "Departments.dept_id"
+                }
+            ]
+        },
+        {
+            "name": "Departments",
+            "columns": [
+                {
+                    "name": "dept_id",
+                    "datatype": "int",
+                    "is_pk": true
+                },
+                {
+                    "name": "name",
+                    "datatype": "text"
+                }
+            ]
+        }
+    ]
+}
