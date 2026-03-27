@@ -66,3 +66,22 @@ The system follows a transparent pipeline, visible in the UI:
 4.  Click **Translate**.
 5.  Observe the **Pipeline Visualization** chips to understand how G-SQL parsed your request.
 6.  Copy the generated SQL from the result block.
+
+## Example Queries
+Here are some example queries you can try, which the G-SQL schema supports:
+
+### Basic Select
+*   "Show movies"
+*   "List actors"
+*   "Find all directors"
+
+### Filtering (Conditions)
+*   "Movies released after 2000"
+*   "Films with budget greater than 1000000"
+*   "Actors where gender is Male"
+
+### Joins (Cross-Table)
+*   "Actors in Avatar"
+*   "Director of Titanic"
+*   "Role of Brad Pitt in Fight Club"
+*   "Movies directed by Nolan"
