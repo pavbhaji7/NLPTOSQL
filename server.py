@@ -1,10 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import sys
 import os
+import csv
+import io
+import sqlparse
+import re
 
 # Add current directory to path so we can import gsql modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -74,7 +78,11 @@ def create_sample_schema():
     
     return schema, domain_dict
 
+schema_history: Dict[str, DatabaseSchema] = {}
+active_schema_name: str = "IMDB"
+
 schema, domain_dict = create_sample_schema()
+schema_history[active_schema_name] = schema
 
 try:
     nlp = NLPProcessor()
@@ -86,6 +94,65 @@ except OSError:
 tagger = SemanticTagger(schema, domain_dict)
 linker = SchemaLinker(schema)
 generator = SQLGenerator()
+
+def parse_sql_ddl(sql_text: str, default_name: str) -> DatabaseSchema:
+    statements = sqlparse.split(sql_text)
+    tables = []
+    
+    for stmt in statements:
+        parsed = sqlparse.parse(stmt)
+        if not parsed:
+            continue
+        stmt_parsed = parsed[0]
+        
+        stmt_str = str(stmt_parsed).strip()
+        if re.search(r'CREATE\s+TABLE', stmt_str, re.IGNORECASE):
+            match_name = re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`\']?([\w\.]+)["`\']?', stmt_str, re.IGNORECASE)
+            if not match_name:
+                continue
+            table_name = match_name.group(1).split('.')[-1]
+            
+            content_match = re.search(r'\((.*)\)', stmt_str, re.IGNORECASE | re.DOTALL)
+            if not content_match:
+                continue
+                
+            columns_str = content_match.group(1)
+            col_defs = re.split(r',\s*(?![^\(\)]*\))', columns_str)
+            
+            columns = []
+            for col_def in col_defs:
+                col_def = col_def.replace('\n', ' ').strip()
+                if not col_def:
+                    continue
+                if re.match(r'^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CONSTRAINT)', col_def, re.IGNORECASE):
+                    continue
+                    
+                parts = col_def.split()
+                if len(parts) >= 2:
+                    col_name = parts[0].strip('"`\'')
+                    col_type_str = parts[1].split('(')[0].upper()
+                    
+                    if col_type_str in ('INT', 'INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT'):
+                        datatype = 'int'
+                    elif col_type_str in ('FLOAT', 'DOUBLE', 'DECIMAL', 'NUMERIC', 'REAL'):
+                        datatype = 'float'
+                    else:
+                        datatype = 'text'
+                    
+                    is_pk = bool(re.search(r'PRIMARY\s+KEY', col_def, re.IGNORECASE))
+                    is_fk = bool(re.search(r'REFERENCES\s+', col_def, re.IGNORECASE))
+                    fk_ref = None
+                    if is_fk:
+                        fk_match = re.search(r'REFERENCES\s+["`\']?([\w\.]+)["`\']?\s*\(\s*["`\']?([\w]+)["`\']?\s*\)', col_def, re.IGNORECASE)
+                        if fk_match:
+                            fk_ref = f"{fk_match.group(1).split('.')[-1]}.{fk_match.group(2)}"
+                    
+                    columns.append(Column(col_name, datatype, is_pk=is_pk, is_fk=is_fk, fk_ref=fk_ref))
+            
+            if columns:
+                tables.append(Table(table_name, columns))
+                
+    return DatabaseSchema(default_name, tables)
 
 # Models
 class QueryRequest(BaseModel):
@@ -114,6 +181,27 @@ def read_root():
 @app.get("/api/schema")
 def get_schema():
     return schema.to_dict()
+
+@app.get("/api/schemas/history")
+def get_schemas_history():
+    return {
+        "active": active_schema_name,
+        "available": list(schema_history.keys())
+    }
+
+class SchemaSwitchRequest(BaseModel):
+    name: str
+
+@app.post("/api/schema/switch")
+def switch_schema(req: SchemaSwitchRequest):
+    global active_schema_name, schema
+    if req.name not in schema_history:
+        raise HTTPException(status_code=404, detail="Database not found in history.")
+    
+    active_schema_name = req.name
+    schema = schema_history[req.name]
+    initialize_components(schema)
+    return {"message": f"Switched active database to '{req.name}'", "schema": schema.to_dict()}
 
 @app.post("/api/translate", response_model=TranslationResponse)
 def translate_query(request: QueryRequest):
@@ -155,8 +243,11 @@ def translate_query(request: QueryRequest):
 
 # Linker and Tagger need to be re-initialized when schema changes
 def initialize_components(new_schema: DatabaseSchema):
-    global schema, domain_dict, tagger, linker, generator
+    global schema, domain_dict, tagger, linker, generator, active_schema_name
     schema = new_schema
+    if schema.name not in schema_history:
+        schema_history[schema.name] = schema
+    active_schema_name = schema.name
     
     # Auto-generate domain dictionary from schema
     # In a real app, successful schema upload might include domain terms
@@ -179,6 +270,78 @@ def update_schema(schema_data: Dict[str, Any]):
         return {"message": "Schema updated successfully", "schema": new_schema.to_dict()}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid schema format: {str(e)}")
+
+@app.post("/api/schema/upload_csv")
+async def upload_csv_schema(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        text_content = contents.decode("utf-8")
+        
+        # Parse CSV
+        csv_reader = csv.reader(io.StringIO(text_content))
+        headers = next(csv_reader, None)
+        if not headers:
+            raise ValueError("CSV file is empty or missing headers")
+            
+        first_row = next(csv_reader, None)
+        
+        # Infer table name from filename
+        table_name = os.path.splitext(file.filename)[0].capitalize()
+        
+        # Infer columns and types
+        columns = []
+        for idx, col_name in enumerate(headers):
+            datatype = "text"
+            is_pk = (idx == 0) # Assume first column is PK
+            
+            if first_row and len(first_row) > idx:
+                val = first_row[idx].strip()
+                if val.isdigit():
+                    datatype = "int"
+                else:
+                    try:
+                        float(val)
+                        datatype = "float"
+                    except ValueError:
+                        datatype = "text"
+            
+            columns.append(Column(col_name.strip(), datatype, is_pk=is_pk))
+            
+        new_table = Table(table_name, columns)
+        
+        # Check if table already exists and update, or else append
+        existing_table_idx = next((i for i, t in enumerate(schema.tables) if t.name.lower() == table_name.lower()), None)
+        if existing_table_idx is not None:
+            schema.tables[existing_table_idx] = new_table
+        else:
+            schema.tables.append(new_table)
+            
+        # Re-initialize with the updated schema
+        initialize_components(schema)
+        
+        return {"message": f"Table '{table_name}' imported successfully from CSV", "schema": schema.to_dict()}
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process CSV: {str(e)}")
+
+@app.post("/api/schema/upload_sql")
+async def upload_sql_schema(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        sql_text = contents.decode("utf-8")
+        
+        db_name = os.path.splitext(file.filename)[0].capitalize()
+        new_schema = parse_sql_ddl(sql_text, db_name)
+        
+        if not new_schema.tables:
+            raise ValueError("No valid CREATE TABLE statements found in SQL file.")
+            
+        initialize_components(new_schema)
+        
+        return {"message": f"SQL database '{db_name}' imported successfully", "schema": schema.to_dict()}
+    
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process SQL: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

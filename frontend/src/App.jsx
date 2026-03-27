@@ -9,13 +9,11 @@ function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showUploader, setShowUploader] = useState(false);
 
   const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
 
   const handleSchemaUpdate = () => {
     setSchemaRefreshKey(prev => prev + 1);
-    setShowUploader(false);
   };
 
   const handleSearch = async (query) => {
@@ -45,14 +43,16 @@ function App() {
       setLoading(false);
     }
   };
-
   return (
     <div className="app-container">
       <div className="sidebar">
-        <button onClick={() => setShowUploader(!showUploader)} style={{ marginBottom: '10px' }}>
-          {showUploader ? 'Hide Uploader' : 'Upload Schema'}
-        </button>
-        {showUploader && <SchemaUploader onSchemaUpdate={handleSchemaUpdate} />}
+        <div className="sidebar-header" style={{ marginBottom: '1rem' }}>
+          <h2>Database Import</h2>
+        </div>
+        <SchemaUploader onSchemaUpdate={handleSchemaUpdate} />
+        <div className="sidebar-header" style={{ marginTop: '2rem', marginBottom: '1rem' }}>
+          <h2>Current Tables</h2>
+        </div>
         <SchemaViewer key={schemaRefreshKey} />
       </div>
 
