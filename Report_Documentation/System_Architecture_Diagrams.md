@@ -16,7 +16,7 @@ graph LR
 
     Dev(("👤 Developer")):::actor
     
-    subgraph "G-SQL Core Engine"
+    subgraph CORE ["G-SQL Core Engine"]
         direction TB
         UC1(["Submit NLQ String"]):::usecase
         UC2(["Parse & Lemmatize Tokens"]):::usecase
@@ -31,7 +31,7 @@ graph LR
     UC3 -. "<< includes >>" .-> UC4
     UC4 -. "<< includes >>" .-> UC5
     
-    class "G-SQL Core Engine" sys;
+    class CORE sys;
 ```
 
 ### 1.2 Backend Sequence Diagram
@@ -110,11 +110,11 @@ graph TD
 
     Clients(("🌐 HTTP Clients")):::external
 
-    subgraph "Local Development Machine"
-        subgraph "Python 3.8+ Virtual Environment"
+    subgraph LOCAL_DEV ["Local Development Machine"]
+        subgraph PY_ENV ["Python 3.8+ Virtual Environment"]
             Spacy[("spaCy en_core_web_sm")]:::software
             
-            subgraph "Uvicorn ASGI Server"
+            subgraph UVICORN ["Uvicorn ASGI Server"]
                 FastAPI["FastAPI Engine (Port 8000)"]:::software
             end
         end
@@ -123,8 +123,8 @@ graph TD
     Clients == "POST /api/translate" ==> FastAPI
     FastAPI -. "Loads Model into RAM" .-> Spacy
     
-    class "Local Development Machine" hardware;
-    class "Python 3.8+ Virtual Environment" hardware;
+    class LOCAL_DEV hardware;
+    class PY_ENV hardware;
 ```
 
 ---
